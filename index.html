@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>OTJ reflective log generator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EEF2F5; --surface:#FFFFFF; --ink:#16263A; --muted:#566578; --line:#D3DBE3;
+  --accent:#1E6B57; --accent-ink:#FFFFFF; --accent-soft:#DCEFE8;
+  --warn:#9A5B00; --warn-soft:#FBEBD0; --bad:#B42318; --bad-soft:#FBE1DE;
+  --k:#2C5A8C; --s:#1E6B57; --b:#7A4B9A;
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0F1720; --surface:#17222E; --ink:#E4EAF0; --muted:#9AA8B7; --line:#2B3949;
+    --accent:#4FB394; --accent-ink:#06231A; --accent-soft:#163A30;
+    --warn:#E8B04B; --warn-soft:#3A2C12; --bad:#F2867B; --bad-soft:#3D1C19;
+    --k:#7FAEE0; --s:#4FB394; --b:#C29BE0;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0F1720; --surface:#17222E; --ink:#E4EAF0; --muted:#9AA8B7; --line:#2B3949;
+  --accent:#4FB394; --accent-ink:#06231A; --accent-soft:#163A30;
+  --warn:#E8B04B; --warn-soft:#3A2C12; --bad:#F2867B; --bad-soft:#3D1C19;
+  --k:#7FAEE0; --s:#4FB394; --b:#C29BE0;
+  color-scheme:dark;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.55 "Public Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:1120px;margin:0 auto;padding:28px 20px 48px}
+header h1{font-size:clamp(1.6rem,3.2vw,2.2rem);line-height:1.15;font-weight:800;letter-spacing:-.02em;margin:0 0 6px}
+header p{margin:0;color:var(--muted);max-width:62ch}
+header p.programme{font-size:1.05rem;font-weight:600;color:var(--accent);margin:0 0 6px}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;margin-top:28px;align-items:start}
+@media (max-width:860px){.grid{grid-template-columns:1fr}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:22px}
+.panel h2{font-size:1.05rem;font-weight:700;margin:0 0 14px}
+label{display:block;font-weight:600;font-size:.95rem;margin:0 0 6px}
+.hint{font-weight:400;color:var(--muted);font-size:.85rem}
+.field{margin-bottom:18px}
+select,input,textarea{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:10px 12px}
+textarea{min-height:92px;resize:vertical}
+select:focus,input:focus,textarea:focus,button:focus-visible,.ksb-row:focus-visible{outline:3px solid var(--accent);outline-offset:1px}
+.ksb-card{margin-top:10px;border-left:4px solid var(--accent);background:var(--bg);padding:10px 12px;border-radius:0 6px 6px 0;font-size:.9rem}
+.ksb-card[hidden]{display:none}
+.ksb-card strong{display:block}
+.ksb-card span{color:var(--muted)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+/* Output slip — the one bold element */
+.slip{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden;position:sticky;top:calc(16px + env(safe-area-inset-top,0px))}
+.slip-head{display:flex;justify-content:space-between;align-items:center;padding:14px 22px;border-bottom:1px solid var(--line)}
+.slip-head h2{margin:0;font-size:1.05rem}
+.slip-body{padding:22px;font-size:1.2rem;line-height:1.6;min-height:150px;white-space:pre-wrap;overflow-wrap:anywhere}
+.slip-body .gap{color:var(--muted);background:var(--bg);border-radius:4px;padding:0 4px}
+.meter{padding:0 22px 18px}
+.meter-track{height:10px;background:var(--bg);border-radius:5px;overflow:hidden;border:1px solid var(--line)}
+.meter-fill{height:100%;background:var(--accent);width:0;transition:width .2s ease, background-color .2s}
+.meter-text{display:flex;justify-content:space-between;font-size:.9rem;margin-top:6px;color:var(--muted)}
+.meter-text b{font-size:1.4rem;color:var(--ink);font-variant-numeric:tabular-nums}
+.slip[data-state="warn"] .meter-fill{background:var(--warn)}
+.slip[data-state="over"] .meter-fill{background:var(--bad)}
+.slip[data-state="over"] .meter-text b{color:var(--bad)}
+.notice{margin:0 22px 16px;padding:10px 12px;border-radius:6px;font-size:.9rem}
+.notice.over{background:var(--bad-soft);color:var(--bad)}
+.notice.warn{background:var(--warn-soft);color:var(--warn)}
+.notice[hidden]{display:none}
+.actions{display:flex;flex-wrap:wrap;gap:10px;padding:16px 22px;border-top:1px solid var(--line)}
+button{font:inherit;font-weight:600;border-radius:6px;padding:10px 16px;cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--ink)}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+button:disabled{opacity:.5;cursor:not-allowed}
+button.small{padding:6px 10px;font-size:.85rem}
+.toast{font-size:.9rem;color:var(--accent);align-self:center}
+
+section.block{margin-top:32px}
+section.block > h2{font-size:1.3rem;margin:0 0 4px}
+section.block > p{margin:0 0 14px;color:var(--muted)}
+.table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:.92rem}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:700;background:var(--bg)}
+tr:last-child td{border-bottom:0}
+td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.empty{padding:22px;color:var(--muted)}
+.log-tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px}
+.total{margin-left:auto;font-weight:600}
+
+/* KSB reference */
+.ksb-tools{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.ksb-tools input{max-width:320px}
+.chip{padding:8px 12px;font-size:.88rem}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.ksb-row{cursor:pointer}
+.ksb-row:hover td{background:var(--accent-soft)}
+.code{font-weight:800;white-space:nowrap}
+.code.k{color:var(--k)} .code.s{color:var(--s)} .code.b{color:var(--b)}
+footer{margin-top:36px;color:var(--muted);font-size:.85rem}
+@media (prefers-reduced-motion:reduce){.meter-fill{transition:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <p class="programme">Network engineer (v1.4) Apprenticeship</p>
+    <h1>OTJ reflective log generator</h1>
+    <p>Pick how you learned, what you looked at and which KSB it evidences. Your entry is built as you type, ready to copy.</p>
+  </header>
+
+  <div class="grid">
+    <div class="panel">
+      <h2>Your learning</h2>
+      <div class="field">
+        <label for="method">What learning method did you use?</label>
+        <select id="method"></select>
+      </div>
+      <div class="field">
+        <label for="topic">What topic did you look at?</label>
+        <select id="topic"></select>
+      </div>
+      <div class="field">
+        <label for="learning">What did you learn from this? <span class="hint" id="budget"></span></label>
+        <textarea id="learning" placeholder="e.g. how VLANs separate traffic on a shared switch"></textarea>
+      </div>
+      <div class="field">
+        <label for="ksb">What KSB does this link to? <span class="hint">(if applicable)</span></label>
+        <select id="ksb"></select>
+        <div class="ksb-card" id="ksbCard" hidden><strong id="ksbSummary"></strong><span id="ksbExample"></span></div>
+      </div>
+    </div>
+
+    <div class="slip" id="slip" data-state="ok">
+      <div class="slip-head"><h2>Your entry</h2></div>
+      <div class="slip-body" id="output" aria-live="polite"></div>
+      <div class="meter">
+        <div class="meter-track"><div class="meter-fill" id="fill"></div></div>
+        <div class="meter-text"><span><b id="count">0</b> / 250 characters</span><span id="left"></span></div>
+      </div>
+      <p class="notice" id="notice" hidden></p>
+      <div class="actions">
+        <button class="primary" id="copyBtn">Copy entry</button>
+        <button id="clearBtn">Clear form</button>
+        <span class="toast" id="toast" role="status"></span>
+      </div>
+    </div>
+  </div>
+
+  <section class="block">
+    <h2>KSB reference</h2>
+    <p>Select a row to link it to your entry.</p>
+    <div class="ksb-tools">
+      <input type="search" id="ksbSearch" placeholder="Search KSBs" aria-label="Search KSBs">
+      <button class="chip" data-f="all" aria-pressed="true">All</button>
+      <button class="chip" data-f="K" aria-pressed="false">Knowledge</button>
+      <button class="chip" data-f="S" aria-pressed="false">Skills</button>
+      <button class="chip" data-f="B" aria-pressed="false">Behaviours</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>KSB</th><th>Short summary</th><th>Example OTJ activity</th></tr></thead>
+        <tbody id="ksbBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+</div>
+
+<script>
+const LIMIT = 250;
+const METHODS = ["Completing Online Research","Shadowing","In Meeting","Using One-To-One","Attending Webinar","In Training Session","Supporting Users","Using Documentation","Completing Courses","Watching Videos","In Discussions","Completing New Tickets"];
+const TOPICS = ["Network Fundamentals","Routing & Switching","Wireless Networks","Network Security","Network Monitoring & Diagnostics","Cloud Networking & Virtualisation","Automation & Scripting","Disaster Recovery & Business Continuity","Change & Configuration Management","Performance Optimisation","Customer Service & Communication","Compliance & Governance","Mathematics for Networking","Professionalism & CPD","System Integration"];
+const KSBS = [
+["K1","Causes & consequences of network and IT infrastructure failures","Analyse a production network outage; identify root causes and document resolution steps"],
+["K2","Architecture of IT systems (hardware, OS, server, virtualisation, cloud, applications)","Document the existing infrastructure (servers, VMs, network devices, cloud connections)"],
+["K3","Techniques for systems performance & optimisation","Use monitoring tools to identify bottlenecks and recommend tuning"],
+["K4","Diagnostic techniques & tools to interrogate systems performance","Run diagnostics (e.g. traceroute, packet captures, logs) to analyze performance issues"],
+["K5","Organisational procedures for recording information & following protocols","Log changes in an approved change-control system; ensure audit trail"],
+["K6","Service Level Agreements (SLAs) and their application","Review SLAs and plan maintenance windows in line with uptime commitments"],
+["K7","Role in Business Continuity & Disaster Recovery","Assist in creating or testing a disaster recovery plan or backup drills"],
+["K8","Purposes & uses of ports and protocols","Map service ports in your environment (HTTP, HTTPS, DNS, etc.)"],
+["K9","Devices, applications, protocols at OSI / TCP/IP layers","Correlate network traffic to OSI layers; troubleshoot layered protocol issues"],
+["K10","Concepts of routing & switching","Deploy a routing protocol like OSPF or BGP in a test network"],
+["K11","Topologies, types & technologies of networks","Redesign a LAN/WAN topology and implement changes"],
+["K12","Wireless technologies & configurations","Deploy and test Wi-Fi (SSID, encryption, roaming) in a building"],
+["K13","Cloud concepts and their purposes","Integrate cloud services (e.g. AWS VPC, Azure) with on-premises network"],
+["K14","Functions of network services","Configure DHCP, DNS, NAT, load balancing in your network"],
+["K15","Types of network maintenance","Perform firmware upgrades or scheduled maintenance on switches/routers"],
+["K16","How legislation impacts network work (e.g. GDPR, data regulation, Children Act 2004)","Review network policies vs GDPR; enforce data protection compliance"],
+["K17","Troubleshooting methodologies for network & infrastructure","Apply structured approach to escalate and resolve a complex network fault"],
+["K18","Integrating a server into a network","Join a server, configure network settings, routing, DNS within the environment"],
+["K19","Types of security threats to networks & infrastructure","Run vulnerability scans, analyze threats and propose mitigation"],
+["K20","Tools to automate network tasks","Write a script (PowerShell, Python, Ansible) to backup network configurations"],
+["K21","Change management approaches","Use formal change control processes to deploy configuration changes"],
+["S1","Apply the appropriate tools and techniques when operating/testing networks","Use network diagnostic tools securely to validate connectivity"],
+["S2","Install and configure elements for secure network maintenance","Deploy switches, routers, firewalls with correct configurations"],
+["S3","Monitor and record system performance in line with specifications","Collect metrics over time, create performance dashboards"],
+["S4","Maintain security & performance against known threats","Apply patches, hardening, firewall rules to preserve security"],
+["S5","Identify system performance issues using tools & techniques","Use logs or analytics tools to pinpoint anomalies"],
+["S6","Gather information to troubleshoot and isolate faults","Use logs, monitoring alerts, packet traces to locate faults"],
+["S7","Communicate task outcomes per procedures and SLAs","Send status updates to stakeholders and document outcomes"],
+["S8","Upgrade, apply and test components to configurations, minimize downtime","Perform live upgrade in maintenance window ensuring continuity"],
+["S9","Record task details face to face, remote or in writing","Log support actions and decisions in your ticketing system"],
+["S10","Interpret requirements from stakeholders; implement accurately","Translate user request into network configuration and apply it"],
+["S11","Monitor, identify, and implement maintenance procedures","Set up automated maintenance tasks for devices & networks"],
+["S12","Optimize systems performance per specifications","Tune routing, buffer sizes, caching for improved throughput"],
+["S13","Prioritise client / stakeholder requests per SLAs & processes","Manage a queue of network requests, decide priority order"],
+["S14","Explain job role & constraints to stakeholders in accessible language","Present network changes & constraints to non-technical staff"],
+["S15","Operate securely, applying policies, processes & legislation","Enforce encryption, access controls, audit logging"],
+["S16","Communicate technical and non-technical info respecting diversity","Explain network issues in layperson’s terms to a business user"],
+["S17","Plan and prioritise work tasks responsibly","Schedule configuration changes, maintenance, and emergencies"],
+["S18","Use numerical skills (binary, dotted-notation) to meet specs","Convert between binary, subnet masks, CIDR notation"],
+["S19","Ensure network work aligns with change management processes","Route all changes through the change board and document them"],
+["S20","Select tools and comply with policies when upgrading systems","Use approved tools, follow patching policy, document each step"],
+["B1","Work independently, show initiative, resourceful problem solving","Take ownership of a network fault, research and propose solution"],
+["B2","Work securely within business, maintain secure practices","Adhere to security procedures, protect credentials, audit access"],
+["B3","Operate within organisational goals, vision, values","Align network design to the company’s mission and IT strategy"],
+["B4","Consider strategic implications: accessibility, diversity, ethics","Ensure network changes don’t disadvantage certain users"],
+["B5","Meet or exceed customer requirements & expectations","Deliver network upgrades with minimal disruption to users"],
+["B6","Quickly identify, investigate, and solve complex problems","Lead incident response to a network breach or outage"],
+["B7","Commit to continuing professional development","Complete relevant certifications (e.g. CCNA, network training)"],
+["B8","Work under pressure with resilience","Manage a critical network incident during peak usage hours"]
+];
+const KSB_MAP = Object.fromEntries(KSBS.map(k => [k[0], k]));
+const $ = id => document.getElementById(id);
+const els = {method:$("method"),topic:$("topic"),learning:$("learning"),ksb:$("ksb")};
+
+function fillSelect(sel, items, placeholder){
+  sel.innerHTML = "";
+  const o = document.createElement("option"); o.value = ""; o.textContent = placeholder; sel.appendChild(o);
+  items.forEach(v => { const op = document.createElement("option"); op.value = v; op.textContent = v; sel.appendChild(op); });
+}
+fillSelect(els.method, METHODS, "Choose a method");
+fillSelect(els.topic, TOPICS, "Choose a topic");
+(function(){
+  const sel = els.ksb; sel.innerHTML = "";
+  const o = document.createElement("option"); o.value = ""; o.textContent = "None / not applicable"; sel.appendChild(o);
+  [["K","Knowledge"],["S","Skills"],["B","Behaviours"]].forEach(([p,name]) => {
+    const g = document.createElement("optgroup"); g.label = name;
+    KSBS.filter(k => k[0][0] === p).forEach(k => {
+      const op = document.createElement("option"); op.value = k[0]; op.textContent = k[0] + " – " + k[1]; g.appendChild(op);
+    });
+    sel.appendChild(g);
+  });
+})();
+
+// Mirrors the spreadsheet's TEXTJOIN formula exactly.
+function buildParts(v){
+  return [
+    {t:"Time spent using"},
+    {t:v.method, gap:"[method]"},
+    {t:"to learn about"},
+    {t:(v.topic || "") + ".", gap: v.topic ? null : "[topic]."},
+    v.learning ? {t:"This improved my knowledge of " + v.learning} : {t:"", gap:"This improved my knowledge of [what you learnt]"},
+    v.ksb ? {t:"which links to " + v.ksb + "."} : null
+  ].filter(Boolean);
+}
+function values(){
+  return {method:els.method.value, topic:els.topic.value, learning:els.learning.value.trim().replace(/\s+/g," "), ksb:els.ksb.value};
+}
+function entryText(v){
+  return buildParts(v).map(p => p.t).filter(t => t && t !== ".").join(" ").replace(/ \.$/, "").trim();
+}
+function lengthWithout(v){ return entryText({...v, learning:""}).length; }
+
+function render(){
+  const v = values();
+  const out = $("output"); out.textContent = "";
+  buildParts(v).forEach((p,i) => {
+    if (i) out.appendChild(document.createTextNode(" "));
+    if (p.gap && !p.t.replace(".","")) { const s = document.createElement("span"); s.className = "gap"; s.textContent = p.gap; out.appendChild(s); }
+    else out.appendChild(document.createTextNode(p.t));
+  });
+  const text = entryText(v), n = text.length;
+  $("count").textContent = n;
+  $("fill").style.width = Math.min(100, n / LIMIT * 100) + "%";
+  const left = LIMIT - n;
+  $("left").textContent = left >= 0 ? left + " left" : Math.abs(left) + " over";
+  const slip = $("slip"), notice = $("notice");
+  slip.dataset.state = n > LIMIT ? "over" : n > LIMIT - 25 ? "warn" : "ok";
+  const missing = [!v.method && "method", !v.topic && "topic", !v.learning && "what you learnt"].filter(Boolean);
+  if (n > LIMIT){ notice.className = "notice over"; notice.textContent = "Entries are limited to 250 characters. Shorten what you learnt by " + (n - LIMIT) + "."; notice.hidden = false; }
+  else if (missing.length){ notice.className = "notice warn"; notice.textContent = "Still needed: " + missing.join(", ") + "."; notice.hidden = false; }
+  else notice.hidden = true;
+  const ready = !missing.length && n <= LIMIT;
+  $("copyBtn").disabled = !ready;
+  const budget = LIMIT - lengthWithout(v) - "This improved my knowledge of ".length;
+  $("budget").textContent = "(about " + Math.max(0, budget) + " characters available)";
+  const k = KSB_MAP[v.ksb];
+  $("ksbCard").hidden = !k;
+  if (k){ $("ksbSummary").textContent = k[0] + ": " + k[1]; $("ksbExample").textContent = "Example: " + k[2]; }
+}
+Object.values(els).forEach(e => e.addEventListener("input", render));
+
+function toast(msg){ const t = $("toast"); t.textContent = msg; clearTimeout(toast.h); toast.h = setTimeout(() => t.textContent = "", 2200); }
+async function copyText(text){
+  try { await navigator.clipboard.writeText(text); return true; }
+  catch(e){
+    const ta = document.createElement("textarea"); ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select();
+    let ok = false; try { ok = document.execCommand("copy"); } catch(_){}
+    ta.remove(); return ok;
+  }
+}
+$("copyBtn").addEventListener("click", async () => { toast(await copyText(entryText(values())) ? "Copied" : "Copy failed – select the text manually"); });
+$("clearBtn").addEventListener("click", () => {
+  els.method.value = ""; els.topic.value = ""; els.learning.value = ""; els.ksb.value = "";
+  render(); els.method.focus();
+});
+
+// KSB reference
+let filter = "all";
+function renderKsb(){
+  const q = $("ksbSearch").value.toLowerCase(), body = $("ksbBody"); body.textContent = "";
+  KSBS.filter(k => (filter === "all" || k[0][0] === filter) && (!q || k.join(" ").toLowerCase().includes(q))).forEach(k => {
+    const tr = document.createElement("tr"); tr.className = "ksb-row"; tr.tabIndex = 0;
+    const c = document.createElement("td"); c.className = "code " + k[0][0].toLowerCase(); c.textContent = k[0];
+    const s = document.createElement("td"); s.textContent = k[1];
+    const e = document.createElement("td"); e.textContent = k[2];
+    tr.append(c, s, e);
+    const pick = () => { els.ksb.value = k[0]; render(); els.ksb.scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block:"center"}); toast(k[0] + " linked"); };
+    tr.onclick = pick; tr.onkeydown = ev => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); pick(); } };
+    body.appendChild(tr);
+  });
+}
+$("ksbSearch").addEventListener("input", renderKsb);
+document.querySelectorAll(".chip").forEach(b => b.addEventListener("click", () => {
+  filter = b.dataset.f; document.querySelectorAll(".chip").forEach(x => x.setAttribute("aria-pressed", x === b)); renderKsb();
+}));
+
+render(); renderKsb();
+</script>
+</body>
+</html>
